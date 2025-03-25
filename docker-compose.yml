@@ -1,0 +1,89 @@
+# Docker Compose configuration
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: ai_agent_backend
+    volumes:
+      # Comment out the problematic volume mounts
+      # - ./backend:/app
+      - todo_volume:/app/logs
+      # - /var/run/docker.sock:/var/run/docker.sock
+      - workspace_volume:/app/workspace
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-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}
+      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY:-BSA7pk2iup6t2Em3vA9VrbH0GU27th4}
+      - MODEL_SELECTION=${MODEL_SELECTION:-gpt-4o}
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    command: uvicorn main:app --host 0.0.0.0 --reload --timeout-keep-alive 300
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: ai_agent_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8000/ws
+      - WDS_SOCKET_PORT=0
+      - CHOKIDAR_USEPOLLING=true
+    restart: unless-stopped
+    command: npm start
+
+
+  terminal:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.terminal
+    container_name: ai_agent_terminal
+    volumes:
+      - workspace_volume:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    tty: true
+    stdin_open: true
+    environment:
+      - TERM=xterm-256color
+      - PYTHONUNBUFFERED=1
+      - NODE_OPTIONS=--max-old-space-size=4096
+      - PIP_CACHE_DIR=/workspace/.pip_cache
+      - NPM_CONFIG_CACHE=/workspace/.npm_cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:alpine
+    container_name: ai_agent_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  todo_volume:
+  workspace_volume:
+  redis_data:

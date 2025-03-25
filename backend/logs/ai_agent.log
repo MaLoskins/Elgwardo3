@@ -1,0 +1,102 @@
+2025-03-25 08:28:16,336 [INFO] ai_agent: Enhanced logging initialized
+2025-03-25 08:28:16,337 [INFO] knowledge_graph: Enhanced knowledge graph initialized
+2025-03-25 08:28:16,337 [INFO] todo_manager: ToDo Manager initialized with file path: logs/ToDo.md
+2025-03-25 08:28:16,337 [INFO] terminal_manager: Enhanced Terminal Manager initialized with container: ai_agent_terminal
+2025-03-25 08:28:16,337 [INFO] agent_factory: Agent Factory initialized
+2025-03-25 08:28:16,419 [INFO] agents.coder_agent: Coder Agent initialized
+2025-03-25 08:28:16,419 [INFO] agent_factory: Created coder agent with model gpt-4o
+2025-03-25 08:28:16,540 [INFO] agents.researcher_agent: Researcher Agent initialized
+2025-03-25 08:28:16,540 [INFO] agent_factory: Created researcher agent with model gpt-4o
+2025-03-25 08:28:16,645 [INFO] agents.formatter_agent: Formatter Agent initialized
+2025-03-25 08:28:16,646 [INFO] agent_factory: Created formatter agent with model gpt-4o
+2025-03-25 08:28:16,646 [INFO] code_chunker: Code Chunker initialized with max chunk size: 8000, overlap: 500
+2025-03-25 08:28:16,646 [INFO] agent_coordinator: Agent Coordinator initialized
+2025-03-25 08:28:16,649 [ERROR] ai_agent: Uncaught exception
+Traceback (most recent call last):
+  File "/home/ubuntu/ai_agent_project/backend/test_api.py", line 17, in <module>
+    from main import app
+  File "/home/ubuntu/ai_agent_project/backend/main.py", line 261, in <module>
+    app.mount("/", StaticFiles(directory="frontend/build", html=True), name="static")
+  File "/usr/local/lib/python3.10/dist-packages/starlette/staticfiles.py", line 57, in __init__
+    raise RuntimeError(f"Directory '{directory}' does not exist")
+RuntimeError: Directory 'frontend/build' does not exist
+2025-03-25 08:28:58,411 [INFO] ai_agent: Enhanced logging initialized
+2025-03-25 08:28:58,412 [INFO] knowledge_graph: Enhanced knowledge graph initialized
+2025-03-25 08:28:58,412 [INFO] todo_manager: ToDo Manager initialized with file path: logs/ToDo.md
+2025-03-25 08:28:58,412 [INFO] terminal_manager: Enhanced Terminal Manager initialized with container: ai_agent_terminal
+2025-03-25 08:28:58,412 [INFO] agent_factory: Agent Factory initialized
+2025-03-25 08:28:58,494 [INFO] agents.coder_agent: Coder Agent initialized
+2025-03-25 08:28:58,494 [INFO] agent_factory: Created coder agent with model gpt-4o
+2025-03-25 08:28:58,615 [INFO] agents.researcher_agent: Researcher Agent initialized
+2025-03-25 08:28:58,615 [INFO] agent_factory: Created researcher agent with model gpt-4o
+2025-03-25 08:28:58,719 [INFO] agents.formatter_agent: Formatter Agent initialized
+2025-03-25 08:28:58,720 [INFO] agent_factory: Created formatter agent with model gpt-4o
+2025-03-25 08:28:58,720 [INFO] code_chunker: Code Chunker initialized with max chunk size: 8000, overlap: 500
+2025-03-25 08:28:58,720 [INFO] agent_coordinator: Agent Coordinator initialized
+2025-03-25 08:28:58,723 [ERROR] ai_agent: Uncaught exception
+Traceback (most recent call last):
+  File "/home/ubuntu/ai_agent_project/backend/test_api.py", line 17, in <module>
+    from main import app
+  File "/home/ubuntu/ai_agent_project/backend/main.py", line 261, in <module>
+    app.mount("/", StaticFiles(directory="frontend/build", html=True), name="static")
+  File "/usr/local/lib/python3.10/dist-packages/starlette/staticfiles.py", line 57, in __init__
+    raise RuntimeError(f"Directory '{directory}' does not exist")
+RuntimeError: Directory 'frontend/build' does not exist
+2025-03-25 08:29:34,969 [INFO] ai_agent: Enhanced logging initialized
+2025-03-25 08:29:34,969 [INFO] knowledge_graph: Enhanced knowledge graph initialized
+2025-03-25 08:29:34,970 [INFO] todo_manager: ToDo Manager initialized with file path: logs/ToDo.md
+2025-03-25 08:29:34,970 [INFO] terminal_manager: Enhanced Terminal Manager initialized with container: ai_agent_terminal
+2025-03-25 08:29:34,970 [INFO] agent_factory: Agent Factory initialized
+2025-03-25 08:29:35,112 [INFO] agents.coder_agent: Coder Agent initialized
+2025-03-25 08:29:35,113 [INFO] agent_factory: Created coder agent with model gpt-4o
+2025-03-25 08:29:35,232 [INFO] agents.researcher_agent: Researcher Agent initialized
+2025-03-25 08:29:35,232 [INFO] agent_factory: Created researcher agent with model gpt-4o
+2025-03-25 08:29:35,292 [INFO] agents.formatter_agent: Formatter Agent initialized
+2025-03-25 08:29:35,293 [INFO] agent_factory: Created formatter agent with model gpt-4o
+2025-03-25 08:29:35,293 [INFO] code_chunker: Code Chunker initialized with max chunk size: 8000, overlap: 500
+2025-03-25 08:29:35,293 [INFO] agent_coordinator: Agent Coordinator initialized
+2025-03-25 08:29:35,302 [INFO] agent_coordinator: Heartbeat started with interval of 5 seconds
+2025-03-25 08:29:35,303 [INFO] agent_coordinator: Starting task execution: Test task
+2025-03-25 08:29:35,303 [ERROR] agent_coordinator: Error executing task: [Errno 2] No such file or directory: 'logs/ToDo.md'
+2025-03-25 08:29:35,304 [ERROR] agent_coordinator: Traceback (most recent call last):
+  File "/home/ubuntu/ai_agent_project/backend/agent_coordinator.py", line 236, in execute_task
+    task_id = self.todo_manager.add_task(task)
+  File "/home/ubuntu/ai_agent_project/backend/todo_manager.py", line 85, in add_task
+    with open(self.todo_file_path, 'r') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'logs/ToDo.md'
+
+2025-03-25 08:29:35,304 [INFO] agent_coordinator: Heartbeat stopped
+2025-03-25 08:29:35,305 [INFO] agents.coder_agent: Coder Agent model updated to gpt-4o
+2025-03-25 08:29:35,306 [INFO] agents.researcher_agent: Researcher Agent model updated to gpt-4o
+2025-03-25 08:29:35,306 [INFO] agents.formatter_agent: Formatter Agent model updated to gpt-4o
+2025-03-25 08:29:35,306 [INFO] agent_coordinator: Model updated to gpt-4o for all agents
+2025-03-25 08:29:35,309 [WARNING] todo_manager: ToDo.md file not found at logs/ToDo.md
+2025-03-25 08:30:08,461 [INFO] ai_agent: Enhanced logging initialized
+2025-03-25 08:30:08,462 [INFO] knowledge_graph: Enhanced knowledge graph initialized
+2025-03-25 08:30:08,462 [INFO] todo_manager: ToDo Manager initialized with file path: logs/ToDo.md
+2025-03-25 08:30:08,462 [INFO] terminal_manager: Enhanced Terminal Manager initialized with container: ai_agent_terminal
+2025-03-25 08:30:08,463 [INFO] agent_factory: Agent Factory initialized
+2025-03-25 08:30:08,591 [INFO] agents.coder_agent: Coder Agent initialized
+2025-03-25 08:30:08,591 [INFO] agent_factory: Created coder agent with model gpt-4o
+2025-03-25 08:30:08,710 [INFO] agents.researcher_agent: Researcher Agent initialized
+2025-03-25 08:30:08,711 [INFO] agent_factory: Created researcher agent with model gpt-4o
+2025-03-25 08:30:08,770 [INFO] agents.formatter_agent: Formatter Agent initialized
+2025-03-25 08:30:08,771 [INFO] agent_factory: Created formatter agent with model gpt-4o
+2025-03-25 08:30:08,771 [INFO] code_chunker: Code Chunker initialized with max chunk size: 8000, overlap: 500
+2025-03-25 08:30:08,771 [INFO] agent_coordinator: Agent Coordinator initialized
+2025-03-25 08:30:08,780 [INFO] agent_coordinator: Heartbeat started with interval of 5 seconds
+2025-03-25 08:30:08,780 [INFO] agent_coordinator: Starting task execution: Test task
+2025-03-25 08:30:08,780 [ERROR] agent_coordinator: Error executing task: [Errno 2] No such file or directory: 'logs/ToDo.md'
+2025-03-25 08:30:08,781 [ERROR] agent_coordinator: Traceback (most recent call last):
+  File "/home/ubuntu/ai_agent_project/backend/agent_coordinator.py", line 236, in execute_task
+    task_id = self.todo_manager.add_task(task)
+  File "/home/ubuntu/ai_agent_project/backend/todo_manager.py", line 85, in add_task
+    with open(self.todo_file_path, 'r') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'logs/ToDo.md'
+
+2025-03-25 08:30:08,781 [INFO] agent_coordinator: Heartbeat stopped
+2025-03-25 08:30:08,782 [INFO] agents.coder_agent: Coder Agent model updated to gpt-4o
+2025-03-25 08:30:08,783 [INFO] agents.researcher_agent: Researcher Agent model updated to gpt-4o
+2025-03-25 08:30:08,783 [INFO] agents.formatter_agent: Formatter Agent model updated to gpt-4o
+2025-03-25 08:30:08,783 [INFO] agent_coordinator: Model updated to gpt-4o for all agents
+2025-03-25 08:30:08,786 [WARNING] todo_manager: ToDo.md file not found at logs/ToDo.md

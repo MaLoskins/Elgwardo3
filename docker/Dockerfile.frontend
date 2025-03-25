@@ -1,0 +1,17 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN npm install -g react-scripts
+
+# Copy the startup script
+COPY docker/scripts/startup.sh /usr/local/bin/startup.sh
+RUN chmod +x /usr/local/bin/startup.sh
+
+# Copy the frontend files
+COPY frontend/ /app/
+
+# Install dependencies
+RUN npm install
+
+CMD ["/usr/local/bin/startup.sh"]

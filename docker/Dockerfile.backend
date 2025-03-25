@@ -1,0 +1,74 @@
+FROM python:3.10-slim
+
+# Install prerequisites for Docker CLI and additional tools
+RUN apt-get update && apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    git \
+    build-essential \
+    vim \
+    nano \
+    unzip \
+    jq \
+    netcat-openbsd
+
+# Add Docker's official GPG key and repository
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+
+# Install Docker CLI
+RUN apt-get update && apt-get install -y docker-ce-cli && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Install NodeJS 20 (instead of 18)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g yarn@1.22.19 jest typescript@4.9.5 ts-jest@29.1.0
+
+# Copy requirements first for better caching
+COPY backend/requirements.txt .
+
+# Create a smaller requirements file for the initial build to prevent timeouts
+RUN echo "fastapi==0.104.1\nuvicorn==0.23.2\npython-dotenv==1.0.0\nhttpx==0.25.1\nwebsockets==11.0.3\nnetworkx==3.2.1\npydantic==2.4.2\npython-multipart==0.0.6\nopenai==1.3.0\naiofiles==23.2.1" > basic_requirements.txt
+
+# Install basic dependencies first to avoid build timeouts
+RUN pip install --no-cache-dir -r basic_requirements.txt
+
+# Then install the remaining dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Set up directory structure
+RUN mkdir -p \
+    /app/logs \
+    /app/workspace \
+    /app/agents \
+    /app/frontend/build
+
+# Copy backend code
+COPY backend/ .
+
+# Create an empty __init__.py to make the directory a package
+RUN touch agents/__init__.py
+
+# Create workspace directory
+RUN mkdir -p workspace
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONIOENCODING=UTF-8
+
+# Expose port for API
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:8000/status || exit 1
+
+# Command to run the application with increased timeout for long-running tasks
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "300"]

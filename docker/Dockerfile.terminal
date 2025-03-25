@@ -1,0 +1,116 @@
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+ENV PYTHONUNBUFFERED=1
+ENV NODE_OPTIONS=--max-old-space-size=4096
+
+# Install necessary packages
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-dev \
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    bc \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    libffi-dev \
+    openssl \
+    zlib1g-dev \
+    zip \
+    unzip \
+    jq \
+    netcat \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Docker CLI
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+    | tee /etc/apt/sources.list.d/docker.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20 (instead of 18)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
+
+# Install global npm packages (use specific versions instead of latest)
+RUN npm install -g \
+    npm@10.2.4 \
+    yarn \
+    jest \
+    typescript \
+    ts-node \
+    eslint \
+    prettier \
+    create-react-app
+
+# Create Python virtual environment
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python packages
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install \
+    pytest \
+    pylint \
+    black \
+    mypy \
+    coverage \
+    requests \
+    flask \
+    fastapi \
+    uvicorn \
+    numpy \
+    pandas \
+    matplotlib \
+    seaborn \
+    jupyter \
+    ipython
+
+# Create workspace directory and cache directories
+RUN mkdir -p /workspace \
+    /workspace/.pip_cache \
+    /workspace/.npm_cache \
+    /workspace/.yarn_cache
+
+# Set working directory
+WORKDIR /workspace
+
+# Add bash configuration for better developer experience
+RUN echo 'PS1="\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /root/.bashrc \
+    && echo 'alias ll="ls -la"' >> /root/.bashrc \
+    && echo 'alias py="python3"' >> /root/.bashrc \
+    && echo 'alias pip="pip3"' >> /root/.bashrc \
+    && echo 'alias node_modules="cd node_modules/.bin"' >> /root/.bashrc \
+    && echo 'export PATH=$PATH:/workspace/node_modules/.bin' >> /root/.bashrc
+
+# Set cache directories in the environment
+ENV PIP_CACHE_DIR=/workspace/.pip_cache
+ENV NPM_CONFIG_CACHE=/workspace/.npm_cache
+ENV YARN_CACHE_FOLDER=/workspace/.yarn_cache
+
+# Add setup script that will be run when container starts
+COPY docker/terminal-setup.sh /usr/local/bin/terminal-setup.sh
+RUN chmod +x /usr/local/bin/terminal-setup.sh
+
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/terminal-setup.sh"]
+
+# Default command is to keep the container running
+CMD ["tail", "-f", "/dev/null"]
