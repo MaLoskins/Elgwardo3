@@ -8,6 +8,7 @@ import Footer from './components/Footer';
 import StatusDisplay from './components/StatusDisplay';
 import ProgressBar from './components/ProgressBar';
 import apiService from './services/apiService';
+import { useStableConnectionStatus } from './utils/connection-handler';
 
 // Improved WebSocket connection with automatic reconnection and better error handling
 const createWebSocketConnection = (url, onMessage, onOpen, onClose, onError) => {
@@ -179,6 +180,8 @@ const ReconnectButton = styled.button`
 function App() {
   // State for WebSocket connection
   const [wsConnected, setWsConnected] = useState(false);
+  // Use the stable connection status hook to prevent flashing "disconnected" status
+  const stableConnectionStatus = useStableConnectionStatus(wsConnected, 2000);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const wsRef = useRef(null);
@@ -440,6 +443,7 @@ function App() {
   useEffect(() => {
     const checkConnectionHealth = () => {
       // If we're connected but haven't received a pong in 90 seconds, reconnect
+      // Note: We use actual wsConnected here, not stableConnectionStatus, for internal health checks
       if (wsConnected && Date.now() - lastPingTimeRef.current > 90000) {
         console.log('WebSocket connection appears stale. Reconnecting...');
         handleReconnect();
@@ -461,9 +465,9 @@ function App() {
         <LeftPanel>
           <StatusContainer>
             <ConnectionStatus>
-              <div className={`status-indicator ${wsConnected ? 'connected' : 'disconnected'}`}></div>
-              <span>{wsConnected ? 'Connected' : 'Disconnected'}</span>
-              {!wsConnected && !isReconnecting && (
+              <div className={`status-indicator ${stableConnectionStatus ? 'connected' : 'disconnected'}`}></div>
+              <span>{stableConnectionStatus ? 'Connected' : 'Disconnected'}</span>
+              {!stableConnectionStatus && !isReconnecting && (
                 <button 
                   onClick={handleReconnect}
                   style={{
@@ -494,7 +498,7 @@ function App() {
             <GraphViewer 
               data={graphData} 
               onRefresh={() => fetchKnowledgeGraph(true)}
-              connected={wsConnected}
+              connected={stableConnectionStatus}
             />
           </GraphContainer>
           
@@ -503,7 +507,7 @@ function App() {
               output={terminalOutput} 
               onExecute={executeTask} 
               onClear={() => setTerminalOutput([])}
-              connected={wsConnected}
+              connected={stableConnectionStatus}
             />
           </TerminalContainer>
         </RightPanel>
