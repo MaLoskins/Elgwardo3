@@ -590,12 +590,20 @@ app.mount("/", StaticFiles(directory="frontend/build", html=True), name="static"
 
 # Mount static files for the frontend
 # Check if frontend/build directory exists before mounting
-import os
-frontend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "build")
-if os.path.exists(frontend_dir):
-    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")
-else:
-    logger.warning(f"Frontend build directory not found at {frontend_dir}. Static files will not be served.")
+try:
+    # Check if frontend/build directory exists
+    import os
+    frontend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "build")
+    
+    if os.path.exists(frontend_dir):
+        app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")
+        logger.info(f"Frontend static files mounted from {frontend_dir}")
+    else:
+        # For development, don't try to mount static files
+        logger.warning(f"Frontend build directory not found at {frontend_dir}. Static files will not be served.")
+        logger.info("This is normal during development as the frontend is served separately.")
+except Exception as e:
+    logger.error(f"Error mounting static files: {str(e)}")
 
 if __name__ == "__main__":
     # Run the FastAPI app with Uvicorn when executed directly

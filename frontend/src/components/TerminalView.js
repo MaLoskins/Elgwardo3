@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
+
 const Container = styled.div`
   display: flex;
   flex-direction: column;
@@ -181,6 +182,18 @@ const CloseButton = styled.button`
   }
 `;
 
+const DebugInfo = styled.div`
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  z-index: 100;
+`;
+
 const TerminalView = ({ output = [], onExecute, onClear, connected = false }) => {
   const [command, setCommand] = useState('');
   const [filter, setFilter] = useState('all');
@@ -190,16 +203,29 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
   const [lastCommand, setLastCommand] = useState('');
   const [commandHistory, setCommandHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [debugInfo, setDebugInfo] = useState({ lastUpdateTime: null, outputCount: 0 });
   const outputContainerRef = useRef(null);
   const inputRef = useRef(null);
   
+  // Update debug info whenever output changes
+  useEffect(() => {
+    setDebugInfo({
+      lastUpdateTime: new Date().toISOString(),
+      outputCount: output?.length || 0
+    });
+  }, [output]);
+  
+  // Ensure output is treated as an array
+  const safeOutput = Array.isArray(output) ? output : [];
+  
   // Stable filtered output to prevent unnecessary renders
   const filteredOutput = React.useMemo(() => {
-    return (output || []).filter(item => {
+    return safeOutput.filter(item => {
+      if (!item || !item.type) return false;
       if (filter === 'all') return true;
       return item.type === filter;
     });
-  }, [output, filter]);
+  }, [safeOutput, filter]);
   
   // Handle command input
   const handleCommandChange = useCallback((e) => {
@@ -325,6 +351,15 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
       }
     }
   }, [lastCommand, connected, isExecuting]);
+
+  // Manual terminal message test function
+  const injectTestMessage = useCallback(() => {
+    if (onExecute) {
+      // This creates a temporary injection to test if the terminal can receive messages
+      const testCommand = "_test_terminal_connection";
+      onExecute(testCommand);
+    }
+  }, [onExecute]);
   
   return (
     <Container>
@@ -365,6 +400,7 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
             {autoScroll ? 'Disable Auto-Scroll' : 'Enable Auto-Scroll'}
           </Button>
           <Button onClick={handleClear}>Clear</Button>
+          <Button onClick={injectTestMessage}>Test Terminal</Button>
         </FilterContainer>
       </Title>
       
@@ -408,8 +444,21 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
             </CommandOutput>
           ))
         ) : (
-          <EmptyState>No terminal output</EmptyState>
+          <EmptyState>
+            {connected 
+              ? 'No terminal output - Type a command to begin'
+              : 'Terminal disconnected - Awaiting connection to server'}
+          </EmptyState>
         )}
+
+        {/* Debug info panel */}
+        <DebugInfo>
+          Last update: {debugInfo.lastUpdateTime ? new Date(debugInfo.lastUpdateTime).toLocaleTimeString() : 'Never'}
+          <br />
+          Messages: {debugInfo.outputCount}
+          <br />
+          Connection: {connected ? 'Yes' : 'No'}
+        </DebugInfo>
       </OutputContainer>
       
       <CommandLine>

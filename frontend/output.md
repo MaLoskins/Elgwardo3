@@ -25,8 +25,10 @@ C:\Users\matth\Desktop\6-AI-AGENTS\Elgwardo3\frontend
     ├── index.js
     ├── services/
     │   └── apiService.js
-    └── tests/
-        └── components.test.js
+    ├── tests/
+    │   └── components.test.js
+    └── utils/
+        └── connection-handler.js
 ```
 
 ## Code Files
@@ -121,6 +123,7 @@ import Footer from './components/Footer';
 import StatusDisplay from './components/StatusDisplay';
 import ProgressBar from './components/ProgressBar';
 import apiService from './services/apiService';
+import { useStableConnectionStatus } from './utils/connection-handler';
 
 // Improved WebSocket connection with automatic reconnection and better error handling
 const createWebSocketConnection = (url, onMessage, onOpen, onClose, onError) => {
@@ -292,6 +295,8 @@ const ReconnectButton = styled.button`
 function App() {
   // State for WebSocket connection
   const [wsConnected, setWsConnected] = useState(false);
+  // Use the stable connection status hook to prevent flashing "disconnected" status
+  const stableConnectionStatus = useStableConnectionStatus(wsConnected, 2000);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const wsRef = useRef(null);
@@ -553,6 +558,7 @@ function App() {
   useEffect(() => {
     const checkConnectionHealth = () => {
       // If we're connected but haven't received a pong in 90 seconds, reconnect
+      // Note: We use actual wsConnected here, not stableConnectionStatus, for internal health checks
       if (wsConnected && Date.now() - lastPingTimeRef.current > 90000) {
         console.log('WebSocket connection appears stale. Reconnecting...');
         handleReconnect();
@@ -574,9 +580,9 @@ function App() {
         <LeftPanel>
           <StatusContainer>
             <ConnectionStatus>
-              <div className={`status-indicator ${wsConnected ? 'connected' : 'disconnected'}`}></div>
-              <span>{wsConnected ? 'Connected' : 'Disconnected'}</span>
-              {!wsConnected && !isReconnecting && (
+              <div className={`status-indicator ${stableConnectionStatus ? 'connected' : 'disconnected'}`}></div>
+              <span>{stableConnectionStatus ? 'Connected' : 'Disconnected'}</span>
+              {!stableConnectionStatus && !isReconnecting && (
                 <button 
                   onClick={handleReconnect}
                   style={{
@@ -607,7 +613,7 @@ function App() {
             <GraphViewer 
               data={graphData} 
               onRefresh={() => fetchKnowledgeGraph(true)}
-              connected={wsConnected}
+              connected={stableConnectionStatus}
             />
           </GraphContainer>
           
@@ -616,7 +622,7 @@ function App() {
               output={terminalOutput} 
               onExecute={executeTask} 
               onClear={() => setTerminalOutput([])}
-              connected={wsConnected}
+              connected={stableConnectionStatus}
             />
           </TerminalContainer>
         </RightPanel>
@@ -2436,7 +2442,7 @@ const EmptyState = styled.div`
   font-style: italic;
 `;
 
-const ConnectionIndicator = styled.div`
+const ConnectionStatus = styled.div`
   display: flex;
   align-items: center;
   margin-right: 10px;
@@ -2462,14 +2468,30 @@ const ConnectionIndicator = styled.div`
   }
 `;
 
-// Quiet error message that doesn't pop up
-const QuietErrorMessage = styled.div`
-  color: #f44336;
+const ErrorMessage = styled.div`
+  background-color: #ffebee;
+  color: #b71c1c;
+  padding: 8px;
   margin-bottom: 8px;
-  padding: 4px 8px;
+  border-radius: 4px;
   font-family: 'Courier New', monospace;
   font-size: 12px;
-  border-left: 3px solid #f44336;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  color: #b71c1c;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  
+  &:hover {
+    color: #d32f2f;
+  }
 `;
 
 const TerminalView = ({ output = [], onExecute, onClear, connected = false }) => {
@@ -2483,7 +2505,6 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
   const [historyIndex, setHistoryIndex] = useState(-1);
   const outputContainerRef = useRef(null);
   const inputRef = useRef(null);
-  const errorTimeoutRef = useRef(null);
   
   // Stable filtered output to prevent unnecessary renders
   const filteredOutput = React.useMemo(() => {
@@ -2519,6 +2540,7 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
     
     try {
       setIsExecuting(true);
+      setError(null);
       
       // Clear command before execution to prevent re-submission
       setCommand('');
@@ -2530,15 +2552,7 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
       
     } catch (err) {
       console.error('Error executing command:', err);
-      // Set error but don't show popup, just log it in the terminal output
-      const errorMessage = `Error: ${err.message || 'Unknown error'}`;
-      
-      // Add error message directly to filtered output instead of showing popup
-      if (onExecute) {
-        // This is a trick - we're not actually executing a command,
-        // just adding an error message to the output
-        setCommand('');
-      }
+      setError(`Failed to execute command: ${err.message || 'Unknown error'}`);
     } finally {
       setIsExecuting(false);
       
@@ -2566,6 +2580,11 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
     }
     setError(null);
   }, [onClear]);
+  
+  // Handle error dismissal
+  const handleDismissError = useCallback(() => {
+    setError(null);
+  }, []);
   
   // Handle command history navigation
   const handleKeyDown = useCallback((e) => {
@@ -2609,15 +2628,6 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
     return () => clearTimeout(timer);
   }, [connected]);
   
-  // Clean up error timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current);
-      }
-    };
-  }, []);
-  
   // Retry last command
   const handleRetryLastCommand = useCallback(() => {
     if (lastCommand && connected && !isExecuting) {
@@ -2634,10 +2644,10 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
       <Title>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           Terminal
-          <ConnectionIndicator>
+          <ConnectionStatus>
             <div className={`status-indicator ${connected ? 'connected' : 'disconnected'}`}></div>
             <span className="status-text">{connected ? 'Connected' : 'Disconnected'}</span>
-          </ConnectionIndicator>
+          </ConnectionStatus>
         </div>
         <FilterContainer>
           <FilterButton 
@@ -2664,18 +2674,33 @@ const TerminalView = ({ output = [], onExecute, onClear, connected = false }) =>
           >
             Errors
           </FilterButton>
+          <Button onClick={handleAutoScrollToggle}>
+            {autoScroll ? 'Disable Auto-Scroll' : 'Enable Auto-Scroll'}
+          </Button>
           <Button onClick={handleClear}>Clear</Button>
         </FilterContainer>
       </Title>
       
       <OutputContainer ref={outputContainerRef}>
+        {error && (
+          <ErrorMessage>
+            <span>{error}</span>
+            <CloseButton onClick={handleDismissError}>×</CloseButton>
+          </ErrorMessage>
+        )}
+        
         {!connected && (
-          <QuietErrorMessage>
-            Terminal disconnected. Commands cannot be executed until connection is restored.
-            {lastCommand && connected && (
-              <span> Last command: {lastCommand}</span>
+          <ErrorMessage>
+            <span>Terminal disconnected. Commands cannot be executed until connection is restored.</span>
+            {lastCommand && (
+              <Button 
+                onClick={handleRetryLastCommand} 
+                disabled={!lastCommand || isExecuting}
+              >
+                Retry Last Command
+              </Button>
             )}
-          </QuietErrorMessage>
+          </ErrorMessage>
         )}
         
         {filteredOutput.length > 0 ? (
@@ -3738,5 +3763,86 @@ describe('ProgressBar Component', () => {
     expect(screen.getByText('50%')).toBeInTheDocument();
   });
 });
+
+```
+
+
+### C:\Users\matth\Desktop\6-AI-AGENTS\Elgwardo3\frontend\src\utils\connection-handler.js
+
+```
+// src/utils/connection-handler.js
+import { useState, useEffect, useRef } from 'react';
+
+/**
+ * Custom hook that provides a debounced connection status
+ * to prevent flashing "disconnected" state during brief connection interruptions
+ * 
+ * @param {boolean} actualConnectionStatus - The actual current connection status
+ * @param {number} disconnectionDelay - Delay in ms before showing disconnected state (default: 2000ms)
+ * @param {number} connectionDelay - Delay in ms before showing connected state (default: 0ms)
+ * @returns {boolean} - The debounced connection status
+ */
+export const useStableConnectionStatus = (
+  actualConnectionStatus, 
+  disconnectionDelay = 2000, 
+  connectionDelay = 0
+) => {
+  const [stableStatus, setStableStatus] = useState(actualConnectionStatus);
+  const disconnectionTimerRef = useRef(null);
+  const connectionTimerRef = useRef(null);
+
+  useEffect(() => {
+    // When connection status changes
+    if (actualConnectionStatus) {
+      // If we're newly connected
+      // Clear any pending disconnection timer
+      if (disconnectionTimerRef.current) {
+        clearTimeout(disconnectionTimerRef.current);
+        disconnectionTimerRef.current = null;
+      }
+
+      // Apply connection delay if specified
+      if (connectionDelay > 0) {
+        if (connectionTimerRef.current) {
+          clearTimeout(connectionTimerRef.current);
+        }
+        connectionTimerRef.current = setTimeout(() => {
+          setStableStatus(true);
+          connectionTimerRef.current = null;
+        }, connectionDelay);
+      } else {
+        // No delay for connected state
+        setStableStatus(true);
+      }
+    } else {
+      // If we're newly disconnected
+      // Clear any pending connection timer
+      if (connectionTimerRef.current) {
+        clearTimeout(connectionTimerRef.current);
+        connectionTimerRef.current = null;
+      }
+
+      // Only show disconnected state after delay
+      if (!disconnectionTimerRef.current) {
+        disconnectionTimerRef.current = setTimeout(() => {
+          setStableStatus(false);
+          disconnectionTimerRef.current = null;
+        }, disconnectionDelay);
+      }
+    }
+
+    return () => {
+      // Clean up any pending timers on unmount
+      if (disconnectionTimerRef.current) {
+        clearTimeout(disconnectionTimerRef.current);
+      }
+      if (connectionTimerRef.current) {
+        clearTimeout(connectionTimerRef.current);
+      }
+    };
+  }, [actualConnectionStatus, disconnectionDelay, connectionDelay]);
+
+  return stableStatus;
+};
 
 ```

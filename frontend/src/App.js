@@ -234,16 +234,81 @@ function App() {
       console.error('Error fetching status:', error);
     }
   }, []);
-  
+
+  const injectLogToTerminal = useCallback((message, type = 'info') => {
+    setTerminalOutput(prev => [
+      ...prev,
+      {
+        type: type,
+        content: message,
+        timestamp: new Date().toISOString()
+      }
+    ]);
+  }, []);
+
   // Execute task
   const executeTask = useCallback(async (taskInput) => {
+    // Add command to terminal immediately
+    setTerminalOutput(prev => [
+      ...prev,
+      {
+        type: 'command',
+        content: typeof taskInput === 'string' ? taskInput : JSON.stringify(taskInput),
+        timestamp: new Date().toISOString()
+      }
+    ]);
+    
     try {
-      await apiService.executeTask(taskInput);
+      // Special case for terminal test command
+      if (taskInput === "_test_terminal_connection") {
+        setTerminalOutput(prev => [
+          ...prev,
+          {
+            type: 'info',
+            content: 'Terminal connection test successful!',
+            timestamp: new Date().toISOString()
+          }
+        ]);
+        return;
+      }
+      
+      // Format task input if needed
+      const formattedTaskInput = typeof taskInput === 'string' 
+        ? { task: taskInput }
+        : taskInput;
+      
+      // Execute the task through the API
+      const result = await apiService.executeTask(formattedTaskInput);
+      
+      // Add result to terminal
+      setTerminalOutput(prev => [
+        ...prev,
+        {
+          type: 'output',
+          content: typeof result === 'string' ? result : 'Task submitted successfully',
+          timestamp: new Date().toISOString()
+        }
+      ]);
+      
       // Refresh data after task execution
       fetchStatus(true);
       fetchTodoTasks(true);
+      
+      return result;
     } catch (error) {
       console.error('Error executing task:', error);
+      
+      // Add error to terminal
+      setTerminalOutput(prev => [
+        ...prev,
+        {
+          type: 'error',
+          content: `Error executing task: ${error.message || 'Unknown error'}`,
+          timestamp: new Date().toISOString()
+        }
+      ]);
+      
+      throw error;
     }
   }, [fetchStatus, fetchTodoTasks]);
   
@@ -276,46 +341,202 @@ function App() {
   
   // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((data) => {
-    console.log('Received WebSocket message:', data);
+    console.log('Processing WebSocket message:', data);
     
-    if (!data || !data.type) return;
+    if (!data) {
+      console.warn('Empty WebSocket message received');
+      return;
+    }
     
     // Reset reconnect attempt counter on successful message
     if (reconnectAttempt > 0) {
       setReconnectAttempt(0);
     }
     
-    // Update last ping time for ping/pong messages
-    if (data.type === 'pong') {
+    // Handle ping/pong messages
+    if (data.type === 'ping' || data.type === 'pong') {
       lastPingTimeRef.current = Date.now();
       return;
     }
     
+    // Special handling for log messages that should appear in the terminal
+    if (data.type === 'log' || data.message || data.content || data.output || 
+        (data.data && (typeof data.data === 'string' || data.data.message || data.data.content))) {
+      
+      let messageContent = '';
+      let messageType = 'info';
+      
+      // Extract content from various formats
+      if (data.message) {
+        messageContent = data.message;
+      } else if (data.content) {
+        messageContent = data.content;
+      } else if (data.output) {
+        messageContent = data.output;
+      } else if (typeof data.data === 'string') {
+        messageContent = data.data;
+      } else if (data.data && (data.data.message || data.data.content || data.data.output)) {
+        messageContent = data.data.message || data.data.content || data.data.output;
+        if (data.data.type) {
+          messageType = data.data.type;
+        }
+      }
+      
+      // Default to showing the raw data if we couldn't extract meaningful content
+      if (!messageContent && data) {
+        try {
+          messageContent = JSON.stringify(data);
+        } catch (e) {
+          messageContent = 'Unparseable message received';
+        }
+      }
+      
+      // Add to terminal output
+      if (messageContent) {
+        setTerminalOutput(prev => [...prev, {
+          type: messageType,
+          content: messageContent,
+          timestamp: new Date().toISOString()
+        }]);
+      }
+    }
+    
+    // Process specific message types
     switch (data.type) {
       case 'terminal_update':
-        setTerminalOutput(prev => [...prev, data.data]);
+        if (data.data) {
+          let newTerminalItem;
+          
+          if (typeof data.data === 'string') {
+            newTerminalItem = {
+              type: 'output',
+              content: data.data,
+              timestamp: new Date().toISOString()
+            };
+          } else {
+            newTerminalItem = {
+              type: data.data.type || 'output',
+              content: data.data.content || data.data.message || JSON.stringify(data.data),
+              timestamp: data.data.timestamp || new Date().toISOString()
+            };
+          }
+          
+          setTerminalOutput(prev => [...prev, newTerminalItem]);
+        }
         break;
+        
+      case 'command_executed':
+        if (data.data && data.data.command) {
+          setTerminalOutput(prev => [
+            ...prev, 
+            {
+              type: 'command',
+              content: data.data.command,
+              timestamp: data.data.timestamp || new Date().toISOString()
+            }
+          ]);
+        }
+        break;
+        
+      case 'command_result':
+        if (data.data) {
+          setTerminalOutput(prev => [
+            ...prev, 
+            {
+              type: data.data.success ? 'output' : 'error',
+              content: data.data.output || data.data.message || JSON.stringify(data.data),
+              timestamp: data.data.timestamp || new Date().toISOString()
+            }
+          ]);
+        }
+        break;
+        
       case 'todo_update':
         fetchTodoTasks(true);
+        
+        // Add log to terminal about todo update
+        if (data.data && (typeof data.data === 'string' || data.data.message)) {
+          const todoMsg = typeof data.data === 'string' ? 
+            data.data : data.data.message;
+            
+          setTerminalOutput(prev => [
+            ...prev, 
+            {
+              type: 'info',
+              content: `ToDo updated: ${todoMsg}`,
+              timestamp: new Date().toISOString()
+            }
+          ]);
+        }
         break;
+        
       case 'graph_update':
         fetchKnowledgeGraph(true);
         break;
+        
       case 'status_update':
         fetchStatus(true);
         break;
+        
       case 'task_update':
         fetchTodoTasks(true);
+        
+        // Add task updates to terminal
+        if (data.data) {
+          const taskMsg = typeof data.data === 'string' ? 
+            data.data : 
+            `Task ${data.data.action || 'updated'}: ${data.data.task || data.data.description || JSON.stringify(data.data)}`;
+            
+          setTerminalOutput(prev => [
+            ...prev, 
+            {
+              type: 'info',
+              content: taskMsg,
+              timestamp: new Date().toISOString()
+            }
+          ]);
+        }
         break;
+        
       case 'agent_status_change':
         setStatus(prev => ({
           ...prev,
           agentStatus: data.data.status,
           lastUpdated: new Date().toISOString()
         }));
+        
+        // Add status change to terminal
+        setTerminalOutput(prev => [
+          ...prev, 
+          {
+            type: 'info',
+            content: `Agent status changed to: ${data.data.status}`,
+            timestamp: new Date().toISOString()
+          }
+        ]);
         break;
+        
       default:
         console.log('Unknown message type:', data.type);
+        
+        // Try to extract any potentially useful information
+        let messageContent = '';
+        if (data.data) {
+          messageContent = typeof data.data === 'string' ? 
+            data.data : 
+            data.data.message || data.data.content || data.data.output || JSON.stringify(data.data);
+            
+          if (messageContent) {
+            setTerminalOutput(prev => [
+              ...prev, 
+              {
+                type: 'output',
+                content: messageContent,
+                timestamp: new Date().toISOString()
+              }
+            ]);
+          }
+        }
     }
   }, [fetchTodoTasks, fetchKnowledgeGraph, fetchStatus, reconnectAttempt]);
   
@@ -332,31 +553,95 @@ function App() {
     
     setIsReconnecting(true);
     
+    // Use window.location to dynamically determine the WebSocket URL
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     
     console.log('Connecting to WebSocket at:', wsUrl);
     
-    wsRef.current = createWebSocketConnection(
-      wsUrl,
-      handleWebSocketMessage,
-      () => {
+    // Create WebSocket connection
+    try {
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = (event) => {
+        console.log('WebSocket connection established');
         setWsConnected(true);
         setReconnectAttempt(0);
         setIsReconnecting(false);
-        console.log('WebSocket connected successfully');
+        
+        // Add initial terminal message to show connection is working
+        setTerminalOutput(prev => [
+          ...prev,
+          {
+            type: 'info',
+            content: 'WebSocket connection established',
+            timestamp: new Date().toISOString()
+          }
+        ]);
         
         // Set up ping interval to keep connection alive
         lastPingTimeRef.current = Date.now();
         pingIntervalRef.current = setInterval(() => {
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send('ping');
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
           }
-        }, 30000); // Send ping every 30 seconds (increased from 15s)
-      },
-      () => {
+        }, 30000); // Send ping every 30 seconds
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          // Try to parse as JSON first
+          let data;
+          try {
+            data = JSON.parse(event.data);
+          } catch (e) {
+            // If not JSON, use as plain text
+            data = { type: 'output', data: event.data };
+          }
+          
+          console.log('WebSocket message received:', data);
+          
+          // Always add raw messages to terminal for debugging
+          if (typeof data === 'object' && data !== null) {
+            // Process the message
+            handleWebSocketMessage(data);
+          } else {
+            // Handle plain text message
+            setTerminalOutput(prev => [
+              ...prev,
+              {
+                type: 'output',
+                content: String(event.data),
+                timestamp: new Date().toISOString()
+              }
+            ]);
+          }
+        } catch (error) {
+          console.error('Error handling WebSocket message:', error);
+          setTerminalOutput(prev => [
+            ...prev,
+            {
+              type: 'error',
+              content: `Error processing message: ${error.message}`,
+              timestamp: new Date().toISOString()
+            }
+          ]);
+        }
+      };
+      
+      ws.onclose = (event) => {
+        console.log('WebSocket connection closed', event.code, event.reason);
         setWsConnected(false);
         setIsReconnecting(false);
+        
+        setTerminalOutput(prev => [
+          ...prev,
+          {
+            type: 'error',
+            content: `WebSocket connection closed: ${event.reason || 'Unknown reason'}`,
+            timestamp: new Date().toISOString()
+          }
+        ]);
         
         // Clear ping interval on close
         if (pingIntervalRef.current) {
@@ -364,11 +649,21 @@ function App() {
         }
         
         scheduleReconnect();
-      },
-      (error) => {
+      };
+      
+      ws.onerror = (error) => {
         console.error('WebSocket error:', error);
         setWsConnected(false);
         setIsReconnecting(false);
+        
+        setTerminalOutput(prev => [
+          ...prev,
+          {
+            type: 'error',
+            content: 'WebSocket connection error',
+            timestamp: new Date().toISOString()
+          }
+        ]);
         
         // Clear ping interval on error
         if (pingIntervalRef.current) {
@@ -376,8 +671,15 @@ function App() {
         }
         
         scheduleReconnect();
-      }
-    );
+      };
+      
+      wsRef.current = ws;
+    } catch (error) {
+      console.error('Error creating WebSocket:', error);
+      setWsConnected(false);
+      setIsReconnecting(false);
+      scheduleReconnect();
+    }
     
     return () => {
       if (wsRef.current) {
@@ -390,55 +692,17 @@ function App() {
         clearInterval(pingIntervalRef.current);
       }
     };
-  }, [handleWebSocketMessage, scheduleReconnect]);
+  }, []);
   
   // Manual reconnect handler
-  const handleReconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    setReconnectAttempt(0);
-    initializeWebSocket();
-  }, [initializeWebSocket]);
-  
-  // Initialize data and WebSocket connection
-  useEffect(() => {
-    // Initial data fetch - do this only once
-    const initialFetchData = async () => {
-      await fetchStatus();
-      await fetchTodoTasks();
-      await fetchKnowledgeGraph();
-    };
-    
-    initialFetchData();
-    
-    // Initialize WebSocket
-    const cleanup = initializeWebSocket();
-    
-    // Set up polling intervals with much longer durations for development
-    statusPollingIntervalRef.current = setInterval(() => {
-      fetchStatus();
-    }, 60000); // Poll status every 60 seconds (increased from 30s)
-    
-    graphUpdateIntervalRef.current = setInterval(() => {
-      fetchKnowledgeGraph();
-      fetchTodoTasks();
-    }, 120000); // Poll graph and todos every 120 seconds (increased from 60s)
-    
-    // Cleanup function
-    return () => {
-      cleanup();
-      
-      if (statusPollingIntervalRef.current) {
-        clearInterval(statusPollingIntervalRef.current);
-      }
-      
-      if (graphUpdateIntervalRef.current) {
-        clearInterval(graphUpdateIntervalRef.current);
-      }
-    };
-  }, [fetchStatus, fetchTodoTasks, fetchKnowledgeGraph, initializeWebSocket]);
-  
+const handleReconnect = useCallback(() => {
+  if (reconnectTimeoutRef.current) {
+    clearTimeout(reconnectTimeoutRef.current);
+  }
+  setReconnectAttempt(0);
+  initializeWebSocket();
+}, [initializeWebSocket]);
+
   // Monitor WebSocket connection health - with reduced frequency
   useEffect(() => {
     const checkConnectionHealth = () => {
